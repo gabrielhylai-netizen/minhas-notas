@@ -1,0 +1,25 @@
+{
+  "name": "Minhas Notas",
+  "short_name": "Notas",
+  "description": "Aplicativo minimalista para blocos, notas e canvas livre.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbf3e8",
+  "theme_color": "#fbf3e8",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

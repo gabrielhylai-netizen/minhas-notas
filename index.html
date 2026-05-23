@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fbf3e8" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Minhas Notas" />
+    <title>Minhas Notas</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="homePage" class="page">
+        <div id="blocksGrid" class="cards-grid"></div>
+      </section>
+
+      <section id="detailPage" class="page hidden">
+        <header class="block-detail-header">
+          <button class="ghost-button icon-only-button" id="backToHome" aria-label="Voltar">
+            <span class="arrow-left" aria-hidden="true"></span>
+          </button>
+          <div class="detail-title">
+            <h1 id="detailBlockTitle" title="Clique duas vezes para editar"></h1>
+          </div>
+          <button class="add-inline-button" id="openNoteDialog" type="button" aria-label="Criar">+</button>
+        </header>
+        <div id="notesGrid" class="cards-grid detail-notes-grid"></div>
+      </section>
+
+      <section id="notePage" class="page hidden">
+        <header class="note-detail-header">
+          <button class="ghost-button icon-only-button" id="backToBlock" aria-label="Voltar">
+            <span class="arrow-left" aria-hidden="true"></span>
+          </button>
+          <div class="detail-title">
+            <h1 id="detailNoteTitle" title="Clique duas vezes para editar"></h1>
+          </div>
+        </header>
+        <div id="infiniteCanvas" class="infinite-canvas" aria-label="Area infinita navegavel">
+          <div id="canvasWorld" class="canvas-world"></div>
+        </div>
+        <button class="add-inline-button" id="addCanvasText" type="button" aria-label="Adicionar texto">+</button>
+      </section>
+    </main>
+
+    <div id="blockDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true">
+      <form id="blockForm" class="dialog draggable-dialog">
+        <input name="title" required maxlength="60" placeholder="Digite o titulo do bloco" />
+        <button class="primary-button" type="submit" data-submit-block>Criar</button>
+      </form>
+    </div>
+
+    <div id="noteDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true">
+      <form id="noteForm" class="dialog draggable-dialog">
+        <input name="title" required maxlength="60" placeholder="Digite o titulo da nota" />
+        <button class="primary-button" type="submit" data-submit-note>Criar</button>
+      </form>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
