@@ -92,6 +92,21 @@ button {
   outline: none;
 }
 
+.description-edit-input {
+  width: min(560px, calc(100vw - 48px));
+  min-height: 86px;
+  border: 1px solid rgba(182, 95, 69, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 250, 242, 0.76);
+  color: var(--muted);
+  font: inherit;
+  line-height: 1.45;
+  padding: 12px 14px;
+  text-align: center;
+  outline: none;
+  resize: vertical;
+}
+
 #backToHome {
   position: fixed;
   left: 24px;
@@ -337,6 +352,7 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 220px));
   gap: 18px;
+  align-items: start;
 }
 
 .detail-notes-grid {
@@ -347,12 +363,39 @@ p {
 }
 
 .note-card {
+  position: relative;
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 10px;
   min-height: 132px;
   padding: 20px;
   text-align: center;
   cursor: pointer;
+}
+
+.card-delete-button {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 30px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: #f3d9cf;
+  color: #8b2e22;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(50%, 50%) scale(0.82);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.note-card.is-delete-ready .card-delete-button,
+.block-card.is-delete-ready .card-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(50%, 50%) scale(1);
 }
 
 .note-card h2 {
@@ -360,6 +403,27 @@ p {
   font-size: 1.45rem;
   font-weight: 800;
   line-height: 1.15;
+}
+
+.note-card p,
+#detailNoteDescription {
+  margin: 0;
+  color: var(--muted);
+}
+
+#detailNoteDescription {
+  cursor: default;
+  user-select: none;
+}
+
+.note-card p {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .card {
@@ -370,9 +434,25 @@ p {
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: visible;
   animation: cardIn 320ms ease both;
   transition: transform 190ms ease, box-shadow 190ms ease, border-color 190ms ease;
+}
+
+.card-placeholder {
+  border: 1px dashed rgba(182, 95, 69, 0.34);
+  border-radius: 8px;
+  background: rgba(255, 250, 242, 0.42);
+  animation: cardIn 180ms ease both;
+}
+
+.card.is-card-dragging {
+  position: fixed;
+  z-index: 20;
+  cursor: grabbing;
+  pointer-events: none;
+  transform: scale(1.03);
+  box-shadow: 0 26px 54px rgba(76, 50, 32, 0.2);
 }
 
 .add-block-card {
@@ -422,8 +502,12 @@ p {
   pointer-events: none;
 }
 
-.card > * {
+.card > *:not(.card-delete-button) {
   position: relative;
+}
+
+.card > .card-delete-button {
+  position: absolute;
 }
 
 .card:hover {
@@ -571,6 +655,23 @@ p {
   margin-bottom: 0;
 }
 
+.confirm-dialog {
+  width: min(340px, calc(100% - 28px));
+}
+
+.confirm-dialog p {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 800;
+  text-align: center;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .terracotta {
   --card-color: #d78266;
 }
@@ -650,6 +751,10 @@ p {
 
   .title-edit-input {
     font-size: 2.6rem;
+    text-align: left;
+  }
+
+  .description-edit-input {
     text-align: left;
   }
 }

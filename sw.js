@@ -1,4 +1,4 @@
-const CACHE_NAME = "minhas-notas-v2";
+const CACHE_NAME = "minhas-notas-v14";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -33,8 +33,22 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
-    }),
+    fetch(event.request)
+      .then((networkResponse) => {
+        const responseClone = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseClone);
+        });
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      }),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });

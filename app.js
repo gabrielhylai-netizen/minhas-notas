@@ -20,6 +20,10 @@ let unsubscribeCloudSync = null;
 let state = loadState();
 let activeBlockId = null;
 let activeNoteId = null;
+let pendingDelete = null;
+let notePressTimer = null;
+let blockPressTimer = null;
+let cardDrag = null;
 
 const colorLabels = {
   terracotta: "Terracota",
@@ -29,6 +33,8 @@ const colorLabels = {
   cream: "Creme",
 };
 
+const CARD_PRESS_DELAY = 120;
+
 const elements = {
   homePage: document.querySelector("#homePage"),
   detailPage: document.querySelector("#detailPage"),
@@ -37,13 +43,18 @@ const elements = {
   notesGrid: document.querySelector("#notesGrid"),
   blockDialog: document.querySelector("#blockDialog"),
   noteDialog: document.querySelector("#noteDialog"),
+  deleteConfirmDialog: document.querySelector("#deleteConfirmDialog"),
+  deleteConfirmText: document.querySelector("#deleteConfirmText"),
   blockForm: document.querySelector("#blockForm"),
   noteForm: document.querySelector("#noteForm"),
   detailBlockTitle: document.querySelector("#detailBlockTitle"),
   detailNoteTitle: document.querySelector("#detailNoteTitle"),
+  detailNoteDescription: document.querySelector("#detailNoteDescription"),
   infiniteCanvas: document.querySelector("#infiniteCanvas"),
   canvasWorld: document.querySelector("#canvasWorld"),
   addCanvasText: document.querySelector("#addCanvasText"),
+  cancelDelete: document.querySelector("#cancelDelete"),
+  confirmDelete: document.querySelector("#confirmDelete"),
 };
 
 let blockDialogDrag = {
@@ -100,6 +111,7 @@ document.querySelector("#backToBlock").addEventListener("click", () => {
 
 elements.detailBlockTitle.addEventListener("dblclick", startTitleEdit);
 elements.detailNoteTitle.addEventListener("dblclick", startTitleEdit);
+elements.detailNoteDescription.addEventListener("dblclick", startDescriptionEdit);
 elements.infiniteCanvas.addEventListener("pointerdown", startCanvasPan);
 elements.infiniteCanvas.addEventListener("pointermove", moveCanvasPan);
 elements.infiniteCanvas.addEventListener("pointerup", endCanvasPan);
@@ -132,6 +144,9 @@ document.querySelectorAll("[data-close]").forEach((button) => {
   });
 });
 
+elements.cancelDelete.addEventListener("click", closeDeleteDialog);
+elements.confirmDelete.addEventListener("click", deletePendingItem);
+
 elements.blockForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const formData = new FormData(elements.blockForm);
@@ -157,7 +172,7 @@ elements.noteForm.addEventListener("submit", (event) => {
   state.notes.unshift({
     id: createId(),
     title: clean(formData.get("title")),
-    content: "",
+    content: clean(formData.get("description")),
     block_id: activeBlockId,
     color: "cream",
   });
@@ -178,6 +193,8 @@ function render() {
 
   if (activeNote) {
     elements.detailNoteTitle.textContent = activeNote.title;
+    elements.detailNoteDescription.textContent = activeNote.content || "";
+    elements.detailNoteDescription.classList.toggle("hidden", !activeNote.content);
     renderCanvasItems(activeNote);
     return;
   }
@@ -275,6 +292,56 @@ function getEditableTitleEntityFromInput(input) {
     type: input.dataset.entityType,
     elementKey: input.dataset.entityType === "note" ? "detailNoteTitle" : "detailBlockTitle",
   };
+}
+
+function startDescriptionEdit() {
+  const activeNote = state.notes.find((note) => note.id === activeNoteId);
+
+  if (!activeNote || document.querySelector("#detailDescriptionInput")) {
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.id = "detailDescriptionInput";
+  input.className = "description-edit-input";
+  input.value = activeNote.content || "";
+  input.maxLength = 180;
+  input.dataset.entityId = activeNote.id;
+  input.dataset.previousDescription = activeNote.content || "";
+
+  elements.detailNoteDescription.replaceWith(input);
+  input.focus();
+  input.select();
+
+  input.addEventListener("blur", () => finishDescriptionEdit(input));
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      input.blur();
+    }
+
+    if (event.key === "Escape") {
+      input.value = input.dataset.previousDescription;
+      render();
+    }
+  });
+}
+
+function finishDescriptionEdit(input) {
+  const note = state.notes.find((entry) => entry.id === input.dataset.entityId);
+
+  if (note) {
+    note.content = clean(input.value);
+    saveState();
+  }
+
+  const description = document.createElement("p");
+  description.id = "detailNoteDescription";
+  description.title = "Clique duas vezes para editar";
+  description.addEventListener("dblclick", startDescriptionEdit);
+  input.replaceWith(description);
+  elements.detailNoteDescription = description;
+  render();
 }
 
 function startCanvasPan(event) {
@@ -441,9 +508,33 @@ function renderBlocks() {
   elements.blocksGrid.innerHTML = `${state.blocks.map(blockTemplate).join("")}${createBlockButtonTemplate()}`;
 
   elements.blocksGrid.querySelectorAll("[data-open-block]").forEach((card) => {
-    card.addEventListener("click", () => {
+    card.addEventListener("pointerdown", (event) => startBlockPress(event, card));
+    card.addEventListener("pointermove", moveCardDrag);
+    card.addEventListener("pointerup", cancelBlockPress);
+    card.addEventListener("pointerup", endCardDrag);
+    card.addEventListener("pointerleave", cancelBlockPress);
+    card.addEventListener("pointercancel", cancelBlockPress);
+    card.addEventListener("pointercancel", endCardDrag);
+
+    card.addEventListener("click", (event) => {
+      if (card.dataset.suppressClick === "true") {
+        delete card.dataset.suppressClick;
+        return;
+      }
+
+      if (event.target.closest("[data-delete-block]") || card.classList.contains("is-delete-ready")) {
+        return;
+      }
+
       activeBlockId = card.dataset.openBlock;
       render();
+    });
+  });
+
+  elements.blocksGrid.querySelectorAll("[data-delete-block]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openDeleteDialog("block", button.dataset.deleteBlock);
     });
   });
 
@@ -455,11 +546,249 @@ function renderNotes() {
   elements.notesGrid.innerHTML = notes.map(noteTemplate).join("");
 
   elements.notesGrid.querySelectorAll("[data-open-note]").forEach((card) => {
-    card.addEventListener("click", () => {
+    card.addEventListener("pointerdown", (event) => startNotePress(event, card));
+    card.addEventListener("pointermove", moveCardDrag);
+    card.addEventListener("pointerup", cancelNotePress);
+    card.addEventListener("pointerup", endCardDrag);
+    card.addEventListener("pointerleave", cancelNotePress);
+    card.addEventListener("pointercancel", cancelNotePress);
+    card.addEventListener("pointercancel", endCardDrag);
+
+    card.addEventListener("click", (event) => {
+      if (card.dataset.suppressClick === "true") {
+        delete card.dataset.suppressClick;
+        return;
+      }
+
+      if (event.target.closest("[data-delete-note]") || card.classList.contains("is-delete-ready")) {
+        return;
+      }
+
       activeNoteId = card.dataset.openNote;
       render();
     });
   });
+
+  elements.notesGrid.querySelectorAll("[data-delete-note]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openDeleteDialog("note", button.dataset.deleteNote);
+    });
+  });
+}
+
+function startBlockPress(event, card) {
+  if (event.target.closest("[data-delete-block]")) {
+    return;
+  }
+
+  cancelBlockPress();
+  card.setPointerCapture(event.pointerId);
+  blockPressTimer = window.setTimeout(() => {
+    elements.blocksGrid.querySelectorAll(".block-card.is-delete-ready").forEach((blockCard) => {
+      if (blockCard !== card) {
+        blockCard.classList.remove("is-delete-ready");
+      }
+    });
+    card.classList.add("is-delete-ready");
+    startCardDrag(event, card, "block");
+  }, CARD_PRESS_DELAY);
+}
+
+function cancelBlockPress() {
+  if (blockPressTimer) {
+    window.clearTimeout(blockPressTimer);
+    blockPressTimer = null;
+  }
+}
+
+function startNotePress(event, card) {
+  if (event.target.closest("[data-delete-note]")) {
+    return;
+  }
+
+  cancelNotePress();
+  card.setPointerCapture(event.pointerId);
+  notePressTimer = window.setTimeout(() => {
+    elements.notesGrid.querySelectorAll(".note-card.is-delete-ready").forEach((noteCard) => {
+      if (noteCard !== card) {
+        noteCard.classList.remove("is-delete-ready");
+      }
+    });
+    card.classList.add("is-delete-ready");
+    startCardDrag(event, card, "note");
+  }, CARD_PRESS_DELAY);
+}
+
+function cancelNotePress() {
+  if (notePressTimer) {
+    window.clearTimeout(notePressTimer);
+    notePressTimer = null;
+  }
+}
+
+function startCardDrag(event, card, type) {
+  const rect = card.getBoundingClientRect();
+  const placeholder = document.createElement("div");
+  placeholder.className = "card-placeholder";
+  placeholder.style.width = `${rect.width}px`;
+  placeholder.style.height = `${rect.height}px`;
+
+  card.parentNode.insertBefore(placeholder, card);
+  card.classList.add("is-card-dragging");
+  card.style.width = `${rect.width}px`;
+  card.style.height = `${rect.height}px`;
+  card.style.left = `${rect.left}px`;
+  card.style.top = `${rect.top}px`;
+
+  cardDrag = {
+    type,
+    card,
+    placeholder,
+    grid: type === "block" ? elements.blocksGrid : elements.notesGrid,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    moved: false,
+  };
+}
+
+function moveCardDrag(event) {
+  if (!cardDrag) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const nextLeft = event.clientX - cardDrag.offsetX;
+  const nextTop = event.clientY - cardDrag.offsetY;
+  cardDrag.card.style.left = `${nextLeft}px`;
+  cardDrag.card.style.top = `${nextTop}px`;
+  cardDrag.moved = true;
+
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest(
+    cardDrag.type === "block" ? ".block-card" : ".note-card",
+  );
+
+  if (!target || target === cardDrag.card || target.parentNode !== cardDrag.grid) {
+    return;
+  }
+
+  swapPlaceholderWithTarget(target);
+}
+
+function swapPlaceholderWithTarget(target) {
+  if (target === cardDrag.placeholder) {
+    return;
+  }
+
+  const animatedCards = [...cardDrag.grid.querySelectorAll(".card:not(.is-card-dragging)")];
+  const previousRects = new Map(animatedCards.map((card) => [card, card.getBoundingClientRect()]));
+  const placeholder = cardDrag.placeholder;
+  const placeholderNext = placeholder.nextSibling;
+  const targetNext = target.nextSibling;
+
+  if (placeholderNext === target) {
+    cardDrag.grid.insertBefore(target, placeholder);
+  } else if (targetNext === placeholder) {
+    cardDrag.grid.insertBefore(placeholder, target);
+  } else {
+    cardDrag.grid.insertBefore(target, placeholder);
+    cardDrag.grid.insertBefore(placeholder, targetNext);
+  }
+
+  animatedCards.forEach((card) => {
+    const previousRect = previousRects.get(card);
+    const nextRect = card.getBoundingClientRect();
+    const deltaX = previousRect.left - nextRect.left;
+    const deltaY = previousRect.top - nextRect.top;
+
+    if (!deltaX && !deltaY) {
+      return;
+    }
+
+    card.style.transition = "none";
+    card.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    card.getBoundingClientRect();
+    card.style.transition = "transform 180ms ease, box-shadow 190ms ease, border-color 190ms ease";
+    card.style.transform = "";
+  });
+}
+
+function endCardDrag() {
+  if (!cardDrag) {
+    return;
+  }
+
+  const { type, card, placeholder } = cardDrag;
+  placeholder.replaceWith(card);
+  card.classList.remove("is-card-dragging");
+  card.style.width = "";
+  card.style.height = "";
+  card.style.left = "";
+  card.style.top = "";
+
+  if (cardDrag.moved) {
+    card.dataset.suppressClick = "true";
+    saveCardOrder(type);
+  }
+
+  cardDrag = null;
+}
+
+function saveCardOrder(type) {
+  if (type === "block") {
+    const orderedIds = [...elements.blocksGrid.querySelectorAll("[data-open-block]")].map((card) => card.dataset.openBlock);
+    const blocksById = new Map(state.blocks.map((block) => [block.id, block]));
+    state.blocks = orderedIds.map((id) => blocksById.get(id)).filter(Boolean);
+  }
+
+  if (type === "note") {
+    const orderedIds = [...elements.notesGrid.querySelectorAll("[data-open-note]")].map((card) => card.dataset.openNote);
+    const notesById = new Map(state.notes.map((note) => [note.id, note]));
+    const reorderedNotes = orderedIds.map((id) => notesById.get(id)).filter(Boolean);
+    const otherNotes = state.notes.filter((note) => note.block_id !== activeBlockId);
+    state.notes = [...reorderedNotes, ...otherNotes];
+  }
+
+  saveState();
+}
+
+function openDeleteDialog(type, id) {
+  pendingDelete = { type, id };
+  elements.deleteConfirmText.textContent = type === "block" ? "Excluir este bloco?" : "Excluir esta nota?";
+  openDialog(elements.deleteConfirmDialog);
+}
+
+function closeDeleteDialog() {
+  pendingDelete = null;
+  closeDialog(elements.deleteConfirmDialog);
+}
+
+function deletePendingItem() {
+  if (!pendingDelete) {
+    closeDeleteDialog();
+    return;
+  }
+
+  if (pendingDelete.type === "note") {
+    state.notes = state.notes.filter((note) => note.id !== pendingDelete.id);
+  }
+
+  if (pendingDelete.type === "block") {
+    state.blocks = state.blocks.filter((block) => block.id !== pendingDelete.id);
+    state.notes = state.notes.filter((note) => note.block_id !== pendingDelete.id);
+
+    if (activeBlockId === pendingDelete.id) {
+      activeBlockId = null;
+      activeNoteId = null;
+    }
+  }
+
+  syncNotesCount();
+  saveState();
+  pendingDelete = null;
+  closeDialog(elements.deleteConfirmDialog);
+  render();
 }
 
 function openBlockDialog() {
@@ -472,6 +801,7 @@ function blockTemplate(block) {
   return `
     <article class="card block-card ${block.color}" data-open-block="${block.id}">
       <h2>${escapeHtml(block.title)}</h2>
+      <button class="card-delete-button" type="button" data-delete-block="${block.id}" aria-label="Excluir bloco">x</button>
     </article>
   `;
 }
@@ -572,6 +902,8 @@ function noteTemplate(note) {
   return `
     <article class="card note-card ${note.color}" data-open-note="${note.id}">
       <h2>${escapeHtml(note.title)}</h2>
+      ${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}
+      <button class="card-delete-button" type="button" data-delete-note="${note.id}" aria-label="Excluir nota">x</button>
     </article>
   `;
 }
