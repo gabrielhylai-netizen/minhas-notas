@@ -1,75 +1,24 @@
-<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#fbf3e8" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Minhas Notas" />
-    <title>Minhas Notas</title>
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./icons/icon-192.png" />
-    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <section id="homePage" class="page">
-        <div id="blocksGrid" class="cards-grid"></div>
-      </section>
+This is free and unencumbered software released into the public domain.
 
-      <section id="detailPage" class="page hidden">
-        <header class="block-detail-header">
-          <button class="ghost-button icon-only-button" id="backToHome" aria-label="Voltar">
-            <span class="arrow-left" aria-hidden="true"></span>
-          </button>
-          <div class="detail-title">
-            <h1 id="detailBlockTitle" title="Clique duas vezes para editar"></h1>
-          </div>
-          <button class="add-inline-button" id="openNoteDialog" type="button" aria-label="Criar">+</button>
-        </header>
-        <div id="notesGrid" class="cards-grid detail-notes-grid"></div>
-      </section>
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
 
-      <section id="notePage" class="page hidden">
-        <header class="note-detail-header">
-          <button class="ghost-button icon-only-button" id="backToBlock" aria-label="Voltar">
-            <span class="arrow-left" aria-hidden="true"></span>
-          </button>
-          <div class="detail-title">
-            <h1 id="detailNoteTitle" title="Clique duas vezes para editar"></h1>
-          </div>
-        </header>
-        <div id="infiniteCanvas" class="infinite-canvas" aria-label="Area infinita navegavel">
-          <div id="canvasWorld" class="canvas-world"></div>
-        </div>
-        <button class="add-inline-button" id="addCanvasText" type="button" aria-label="Adicionar texto">+</button>
-      </section>
-    </main>
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
 
-    <div id="blockDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true">
-      <form id="blockForm" class="dialog draggable-dialog">
-        <input name="title" required maxlength="60" placeholder="Digite o titulo do bloco" />
-        <button class="primary-button" type="submit" data-submit-block>Criar</button>
-      </form>
-    </div>
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 
-    <div id="noteDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true">
-      <form id="noteForm" class="dialog draggable-dialog">
-        <input name="title" required maxlength="60" placeholder="Digite o titulo da nota" />
-        <button class="primary-button" type="submit" data-submit-note>Criar</button>
-      </form>
-    </div>
-
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script src="./app.js"></script>
-  </body>
-</html>
+For more information, please refer to <https://unlicense.org>
