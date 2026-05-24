@@ -35,7 +35,8 @@ const colorLabels = {
   cream: "Creme",
 };
 
-const CARD_PRESS_DELAY = 120;
+const CARD_MOUSE_PRESS_DELAY = 120;
+const CARD_TOUCH_PRESS_DELAY = 650;
 
 const elements = {
   homePage: document.querySelector("#homePage"),
@@ -487,7 +488,7 @@ function startBlockPress(event, card) {
     });
     card.classList.add("is-delete-ready");
     startCardDrag(event, card, "block");
-  }, CARD_PRESS_DELAY);
+  }, getCardPressDelay(event));
 }
 
 function cancelBlockPress() {
@@ -512,7 +513,7 @@ function startNotePress(event, card) {
     });
     card.classList.add("is-delete-ready");
     startCardDrag(event, card, "note");
-  }, CARD_PRESS_DELAY);
+  }, getCardPressDelay(event));
 }
 
 function cancelNotePress() {
@@ -537,7 +538,11 @@ function startMiniNotePress(event, card) {
     });
     card.classList.add("is-delete-ready");
     startCardDrag(event, card, "miniNote");
-  }, CARD_PRESS_DELAY);
+  }, getCardPressDelay(event));
+}
+
+function getCardPressDelay(event) {
+  return event.pointerType === "touch" ? CARD_TOUCH_PRESS_DELAY : CARD_MOUSE_PRESS_DELAY;
 }
 
 function cancelMiniNotePress() {
