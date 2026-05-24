@@ -23,6 +23,7 @@ let activeNoteId = null;
 let pendingDelete = null;
 let notePressTimer = null;
 let blockPressTimer = null;
+let miniNotePressTimer = null;
 let cardDrag = null;
 
 const colorLabels = {
@@ -47,12 +48,13 @@ const elements = {
   deleteConfirmText: document.querySelector("#deleteConfirmText"),
   blockForm: document.querySelector("#blockForm"),
   noteForm: document.querySelector("#noteForm"),
+  miniNoteDialog: document.querySelector("#miniNoteDialog"),
+  miniNoteForm: document.querySelector("#miniNoteForm"),
   detailBlockTitle: document.querySelector("#detailBlockTitle"),
   detailNoteTitle: document.querySelector("#detailNoteTitle"),
   detailNoteDescription: document.querySelector("#detailNoteDescription"),
-  infiniteCanvas: document.querySelector("#infiniteCanvas"),
-  canvasWorld: document.querySelector("#canvasWorld"),
-  addCanvasText: document.querySelector("#addCanvasText"),
+  miniNotesGrid: document.querySelector("#miniNotesGrid"),
+  openMiniNoteDialog: document.querySelector("#openMiniNoteDialog"),
   cancelDelete: document.querySelector("#cancelDelete"),
   confirmDelete: document.querySelector("#confirmDelete"),
 };
@@ -65,31 +67,16 @@ let blockDialogDrag = {
   dialog: null,
 };
 
-let canvasPan = {
-  active: false,
-  startX: 0,
-  startY: 0,
-  x: 0,
-  y: 0,
-  originX: 0,
-  originY: 0,
-};
-
-let canvasItemDrag = {
-  active: false,
-  item: null,
-  element: null,
-  startX: 0,
-  startY: 0,
-  originX: 0,
-  originY: 0,
-  moved: false,
-};
-
 document.querySelector("#openNoteDialog").addEventListener("click", () => {
   elements.noteForm.reset();
   resetDialogDrag(elements.noteForm, elements.noteDialog);
   openDialog(elements.noteDialog);
+});
+
+elements.openMiniNoteDialog.addEventListener("click", () => {
+  elements.miniNoteForm.reset();
+  resetDialogDrag(elements.miniNoteForm, elements.miniNoteDialog);
+  openDialog(elements.miniNoteDialog);
 });
 
 document.querySelector("#backToHome").addEventListener("click", () => {
@@ -112,11 +99,6 @@ document.querySelector("#backToBlock").addEventListener("click", () => {
 elements.detailBlockTitle.addEventListener("dblclick", startTitleEdit);
 elements.detailNoteTitle.addEventListener("dblclick", startTitleEdit);
 elements.detailNoteDescription.addEventListener("dblclick", startDescriptionEdit);
-elements.infiniteCanvas.addEventListener("pointerdown", startCanvasPan);
-elements.infiniteCanvas.addEventListener("pointermove", moveCanvasPan);
-elements.infiniteCanvas.addEventListener("pointerup", endCanvasPan);
-elements.infiniteCanvas.addEventListener("pointercancel", endCanvasPan);
-elements.addCanvasText.addEventListener("click", addCanvasText);
 
 document.querySelector("[data-submit-block]").addEventListener("click", (event) => {
   event.preventDefault();
@@ -138,6 +120,16 @@ document.querySelector("[data-submit-note]").addEventListener("click", (event) =
   }
 });
 
+document.querySelector("[data-submit-mini-note]").addEventListener("click", (event) => {
+  event.preventDefault();
+
+  if (typeof elements.miniNoteForm.requestSubmit === "function") {
+    elements.miniNoteForm.requestSubmit();
+  } else {
+    elements.miniNoteForm.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+  }
+});
+
 document.querySelectorAll("[data-close]").forEach((button) => {
   button.addEventListener("click", () => {
     closeDialog(document.querySelector(`#${button.dataset.close}`));
@@ -146,6 +138,7 @@ document.querySelectorAll("[data-close]").forEach((button) => {
 
 elements.cancelDelete.addEventListener("click", closeDeleteDialog);
 elements.confirmDelete.addEventListener("click", deletePendingItem);
+document.addEventListener("pointerdown", clearDeleteModeOnOutsidePress);
 
 elements.blockForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -168,18 +161,54 @@ elements.blockForm.addEventListener("submit", (event) => {
 elements.noteForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const formData = new FormData(elements.noteForm);
+  const title = clean(formData.get("title"));
 
   state.notes.unshift({
     id: createId(),
-    title: clean(formData.get("title")),
+    title,
     content: clean(formData.get("description")),
     block_id: activeBlockId,
     color: "cream",
+    miniNotes: [
+      {
+        id: createId(),
+        title,
+        content: "",
+        color: "cream",
+        fixedLast: true,
+      },
+    ],
   });
 
   syncNotesCount();
   saveState();
   closeDialog(elements.noteDialog);
+  render();
+});
+
+elements.miniNoteForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const activeNote = state.notes.find((note) => note.id === activeNoteId);
+
+  if (!activeNote) {
+    return;
+  }
+
+  const formData = new FormData(elements.miniNoteForm);
+
+  if (!Array.isArray(activeNote.miniNotes)) {
+    activeNote.miniNotes = [];
+  }
+
+  activeNote.miniNotes.unshift({
+    id: createId(),
+    title: clean(formData.get("title")),
+    content: clean(formData.get("description")),
+    color: "cream",
+  });
+
+  saveState();
+  closeDialog(elements.miniNoteDialog);
   render();
 });
 
@@ -195,7 +224,7 @@ function render() {
     elements.detailNoteTitle.textContent = activeNote.title;
     elements.detailNoteDescription.textContent = activeNote.content || "";
     elements.detailNoteDescription.classList.toggle("hidden", !activeNote.content);
-    renderCanvasItems(activeNote);
+    renderMiniNotes(activeNote);
     return;
   }
 
@@ -344,166 +373,6 @@ function finishDescriptionEdit(input) {
   render();
 }
 
-function startCanvasPan(event) {
-  if (event.target.closest(".canvas-text")) {
-    return;
-  }
-
-  canvasPan.active = true;
-  canvasPan.startX = event.clientX;
-  canvasPan.startY = event.clientY;
-  canvasPan.originX = canvasPan.x;
-  canvasPan.originY = canvasPan.y;
-  elements.infiniteCanvas.classList.add("is-panning");
-  elements.infiniteCanvas.setPointerCapture(event.pointerId);
-}
-
-function moveCanvasPan(event) {
-  if (!canvasPan.active) {
-    return;
-  }
-
-  canvasPan.x = canvasPan.originX + event.clientX - canvasPan.startX;
-  canvasPan.y = canvasPan.originY + event.clientY - canvasPan.startY;
-  elements.canvasWorld.style.transform = `translate(${canvasPan.x}px, ${canvasPan.y}px)`;
-}
-
-function endCanvasPan() {
-  canvasPan.active = false;
-  elements.infiniteCanvas.classList.remove("is-panning");
-}
-
-function addCanvasText() {
-  const activeNote = state.notes.find((note) => note.id === activeNoteId);
-
-  if (!activeNote) {
-    return;
-  }
-
-  if (!Array.isArray(activeNote.canvasItems)) {
-    activeNote.canvasItems = [];
-  }
-
-  const canvasRect = elements.infiniteCanvas.getBoundingClientRect();
-  const worldRect = elements.canvasWorld.getBoundingClientRect();
-  const item = {
-    id: createId(),
-    type: "text",
-    text: "",
-    x: canvasRect.left + canvasRect.width / 2 - worldRect.left - 110,
-    y: canvasRect.top + canvasRect.height / 2 - worldRect.top - 34,
-  };
-
-  activeNote.canvasItems.push(item);
-  saveState();
-  renderCanvasItems(activeNote, item.id);
-}
-
-function renderCanvasItems(note, selectedItemId = null) {
-  const items = Array.isArray(note.canvasItems) ? note.canvasItems : [];
-  elements.canvasWorld.innerHTML = items.map(canvasTextTemplate).join("");
-
-  elements.canvasWorld.querySelectorAll(".canvas-text").forEach((itemElement) => {
-    const item = items.find((canvasItem) => canvasItem.id === itemElement.dataset.canvasItem);
-
-    itemElement.addEventListener("pointerdown", (event) => startCanvasItemDrag(event, item));
-    itemElement.addEventListener("pointermove", moveCanvasItemDrag);
-    itemElement.addEventListener("pointerup", endCanvasItemDrag);
-    itemElement.addEventListener("pointercancel", endCanvasItemDrag);
-
-    itemElement.addEventListener("dblclick", () => startCanvasTextEdit(itemElement));
-    itemElement.addEventListener("blur", () => finishCanvasTextEdit(itemElement, item));
-    itemElement.addEventListener("keydown", (event) => handleCanvasTextKeydown(event, itemElement));
-    itemElement.addEventListener("input", () => updateCanvasText(itemElement, item));
-
-    if (itemElement.dataset.canvasItem === selectedItemId) {
-      startCanvasTextEdit(itemElement);
-      itemElement.focus();
-    }
-  });
-}
-
-function startCanvasItemDrag(event, item) {
-  if (event.currentTarget.classList.contains("is-editing")) {
-    return;
-  }
-
-  canvasItemDrag = {
-    active: true,
-    item,
-    element: event.currentTarget,
-    startX: event.clientX,
-    startY: event.clientY,
-    originX: item.x,
-    originY: item.y,
-    moved: false,
-  };
-
-  event.currentTarget.contentEditable = "false";
-  event.currentTarget.classList.add("is-dragging");
-  event.currentTarget.setPointerCapture(event.pointerId);
-}
-
-function moveCanvasItemDrag(event) {
-  if (!canvasItemDrag.active) {
-    return;
-  }
-
-  const nextX = canvasItemDrag.originX + event.clientX - canvasItemDrag.startX;
-  const nextY = canvasItemDrag.originY + event.clientY - canvasItemDrag.startY;
-
-  canvasItemDrag.item.x = nextX;
-  canvasItemDrag.item.y = nextY;
-  canvasItemDrag.moved = Math.abs(event.clientX - canvasItemDrag.startX) > 3 || Math.abs(event.clientY - canvasItemDrag.startY) > 3;
-  canvasItemDrag.element.style.left = `${nextX}px`;
-  canvasItemDrag.element.style.top = `${nextY}px`;
-}
-
-function endCanvasItemDrag() {
-  if (!canvasItemDrag.active) {
-    return;
-  }
-
-  canvasItemDrag.element.classList.remove("is-dragging");
-  canvasItemDrag.element.contentEditable = "false";
-  canvasItemDrag.active = false;
-  saveState();
-}
-
-function startCanvasTextEdit(itemElement) {
-  itemElement.contentEditable = "true";
-  itemElement.classList.add("is-editing");
-  itemElement.focus();
-}
-
-function finishCanvasTextEdit(itemElement, item) {
-  itemElement.contentEditable = "false";
-  itemElement.classList.remove("is-editing");
-  updateCanvasText(itemElement, item);
-}
-
-function handleCanvasTextKeydown(event, itemElement) {
-  if (event.key === "Escape") {
-    itemElement.blur();
-  }
-}
-
-function updateCanvasText(itemElement, item) {
-  item.text = itemElement.textContent.trim();
-  saveState();
-}
-
-function canvasTextTemplate(item) {
-  return `
-    <div
-      class="canvas-text"
-      data-canvas-item="${item.id}"
-      contenteditable="false"
-      style="left: ${item.x}px; top: ${item.y}px;"
-    >${escapeHtml(item.text)}</div>
-  `;
-}
-
 function renderBlocks() {
   elements.blocksGrid.innerHTML = `${state.blocks.map(blockTemplate).join("")}${createBlockButtonTemplate()}`;
 
@@ -577,6 +446,28 @@ function renderNotes() {
   });
 }
 
+function renderMiniNotes(note) {
+  const miniNotes = Array.isArray(note.miniNotes) ? note.miniNotes : [];
+  elements.miniNotesGrid.innerHTML = miniNotes.map(miniNoteTemplate).join("");
+
+  elements.miniNotesGrid.querySelectorAll("[data-mini-note]").forEach((card) => {
+    card.addEventListener("pointerdown", (event) => startMiniNotePress(event, card));
+    card.addEventListener("pointermove", moveCardDrag);
+    card.addEventListener("pointerup", cancelMiniNotePress);
+    card.addEventListener("pointerup", endCardDrag);
+    card.addEventListener("pointerleave", cancelMiniNotePress);
+    card.addEventListener("pointercancel", cancelMiniNotePress);
+    card.addEventListener("pointercancel", endCardDrag);
+  });
+
+  elements.miniNotesGrid.querySelectorAll("[data-delete-mini-note]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openDeleteDialog("miniNote", button.dataset.deleteMiniNote);
+    });
+  });
+}
+
 function startBlockPress(event, card) {
   if (event.target.closest("[data-delete-block]")) {
     return;
@@ -627,6 +518,49 @@ function cancelNotePress() {
   }
 }
 
+function startMiniNotePress(event, card) {
+  if (event.target.closest("[data-delete-mini-note]") || card.dataset.fixedLast === "true") {
+    return;
+  }
+
+  cancelMiniNotePress();
+  card.setPointerCapture(event.pointerId);
+  miniNotePressTimer = window.setTimeout(() => {
+    elements.miniNotesGrid.querySelectorAll(".note-card.is-delete-ready").forEach((miniNoteCard) => {
+      if (miniNoteCard !== card) {
+        miniNoteCard.classList.remove("is-delete-ready");
+      }
+    });
+    card.classList.add("is-delete-ready");
+    startCardDrag(event, card, "miniNote");
+  }, CARD_PRESS_DELAY);
+}
+
+function cancelMiniNotePress() {
+  if (miniNotePressTimer) {
+    window.clearTimeout(miniNotePressTimer);
+    miniNotePressTimer = null;
+  }
+}
+
+function clearDeleteModeOnOutsidePress(event) {
+  const clickedInsideProtectedArea = event.target.closest(
+    ".card, .add-block-card, .dialog-backdrop, .add-inline-button, .ghost-button, .card-delete-button",
+  );
+
+  if (clickedInsideProtectedArea) {
+    return;
+  }
+
+  clearDeleteMode();
+}
+
+function clearDeleteMode() {
+  document.querySelectorAll(".is-delete-ready").forEach((card) => {
+    card.classList.remove("is-delete-ready");
+  });
+}
+
 function startCardDrag(event, card, type) {
   const rect = card.getBoundingClientRect();
   const placeholder = document.createElement("div");
@@ -645,11 +579,25 @@ function startCardDrag(event, card, type) {
     type,
     card,
     placeholder,
-    grid: type === "block" ? elements.blocksGrid : elements.notesGrid,
+    grid: getCardGrid(type),
+    originalOrder: getCardOrder(type),
     offsetX: event.clientX - rect.left,
     offsetY: event.clientY - rect.top,
     moved: false,
+    orderChanged: false,
   };
+}
+
+function getCardGrid(type) {
+  if (type === "block") {
+    return elements.blocksGrid;
+  }
+
+  if (type === "miniNote") {
+    return elements.miniNotesGrid;
+  }
+
+  return elements.notesGrid;
 }
 
 function moveCardDrag(event) {
@@ -676,8 +624,33 @@ function moveCardDrag(event) {
   swapPlaceholderWithTarget(target);
 }
 
+function getCardOrder(type) {
+  if (type === "block") {
+    return [...elements.blocksGrid.querySelectorAll("[data-open-block]")].map((card) => card.dataset.openBlock);
+  }
+
+  if (type === "miniNote") {
+    return [...elements.miniNotesGrid.querySelectorAll("[data-mini-note]")].map((card) => card.dataset.miniNote);
+  }
+
+  return [...elements.notesGrid.querySelectorAll("[data-open-note]")].map((card) => card.dataset.openNote);
+}
+
+function ordersMatch(firstOrder, secondOrder) {
+  return firstOrder.length === secondOrder.length && firstOrder.every((id, index) => id === secondOrder[index]);
+}
+
 function swapPlaceholderWithTarget(target) {
   if (target === cardDrag.placeholder) {
+    return;
+  }
+
+  if (cardDrag.type === "miniNote" && target.dataset.fixedLast === "true") {
+    if (cardDrag.placeholder.nextSibling !== target) {
+      cardDrag.grid.insertBefore(cardDrag.placeholder, target);
+      cardDrag.orderChanged = true;
+    }
+
     return;
   }
 
@@ -695,6 +668,8 @@ function swapPlaceholderWithTarget(target) {
     cardDrag.grid.insertBefore(target, placeholder);
     cardDrag.grid.insertBefore(placeholder, targetNext);
   }
+
+  cardDrag.orderChanged = true;
 
   animatedCards.forEach((card) => {
     const previousRect = previousRects.get(card);
@@ -719,7 +694,9 @@ function endCardDrag() {
     return;
   }
 
-  const { type, card, placeholder } = cardDrag;
+  const { type, card, placeholder, moved, orderChanged, originalOrder } = cardDrag;
+  card.style.transition = "none";
+  card.style.animation = "none";
   placeholder.replaceWith(card);
   card.classList.remove("is-card-dragging");
   card.style.width = "";
@@ -727,27 +704,46 @@ function endCardDrag() {
   card.style.left = "";
   card.style.top = "";
 
-  if (cardDrag.moved) {
+  if (moved) {
     card.dataset.suppressClick = "true";
+  }
+
+  if (orderChanged && !ordersMatch(originalOrder, getCardOrder(type))) {
     saveCardOrder(type);
   }
+
+  requestAnimationFrame(() => {
+    card.style.transition = "";
+    card.style.animation = "";
+    card.style.transform = "";
+  });
 
   cardDrag = null;
 }
 
 function saveCardOrder(type) {
   if (type === "block") {
-    const orderedIds = [...elements.blocksGrid.querySelectorAll("[data-open-block]")].map((card) => card.dataset.openBlock);
+    const orderedIds = getCardOrder(type);
     const blocksById = new Map(state.blocks.map((block) => [block.id, block]));
     state.blocks = orderedIds.map((id) => blocksById.get(id)).filter(Boolean);
   }
 
   if (type === "note") {
-    const orderedIds = [...elements.notesGrid.querySelectorAll("[data-open-note]")].map((card) => card.dataset.openNote);
+    const orderedIds = getCardOrder(type);
     const notesById = new Map(state.notes.map((note) => [note.id, note]));
     const reorderedNotes = orderedIds.map((id) => notesById.get(id)).filter(Boolean);
     const otherNotes = state.notes.filter((note) => note.block_id !== activeBlockId);
     state.notes = [...reorderedNotes, ...otherNotes];
+  }
+
+  if (type === "miniNote") {
+    const activeNote = state.notes.find((note) => note.id === activeNoteId);
+
+    if (activeNote && Array.isArray(activeNote.miniNotes)) {
+      const orderedIds = getCardOrder(type);
+      const miniNotesById = new Map(activeNote.miniNotes.map((miniNote) => [miniNote.id, miniNote]));
+      activeNote.miniNotes = keepFixedLastMiniNotes(orderedIds.map((id) => miniNotesById.get(id)).filter(Boolean));
+    }
   }
 
   saveState();
@@ -755,7 +751,12 @@ function saveCardOrder(type) {
 
 function openDeleteDialog(type, id) {
   pendingDelete = { type, id };
-  elements.deleteConfirmText.textContent = type === "block" ? "Excluir este bloco?" : "Excluir esta nota?";
+  const messages = {
+    block: "Excluir este bloco?",
+    note: "Excluir esta nota?",
+    miniNote: "Excluir esta mininota?",
+  };
+  elements.deleteConfirmText.textContent = messages[type] || "Excluir?";
   openDialog(elements.deleteConfirmDialog);
 }
 
@@ -781,6 +782,14 @@ function deletePendingItem() {
     if (activeBlockId === pendingDelete.id) {
       activeBlockId = null;
       activeNoteId = null;
+    }
+  }
+
+  if (pendingDelete.type === "miniNote") {
+    const activeNote = state.notes.find((note) => note.id === activeNoteId);
+
+    if (activeNote && Array.isArray(activeNote.miniNotes)) {
+      activeNote.miniNotes = activeNote.miniNotes.filter((miniNote) => miniNote.id !== pendingDelete.id);
     }
   }
 
@@ -823,6 +832,10 @@ function closeDialog(dialog) {
 
   if (dialog === elements.noteDialog) {
     resetDialogDrag(elements.noteForm, elements.noteDialog);
+  }
+
+  if (dialog === elements.miniNoteDialog) {
+    resetDialogDrag(elements.miniNoteForm, elements.miniNoteDialog);
   }
 
   dialog.classList.add("hidden");
@@ -906,6 +919,35 @@ function noteTemplate(note) {
       <button class="card-delete-button" type="button" data-delete-note="${note.id}" aria-label="Excluir nota">x</button>
     </article>
   `;
+}
+
+function miniNoteTemplate(miniNote) {
+  return `
+    <article class="card note-card ${miniNote.color}" data-mini-note="${miniNote.id}" data-fixed-last="${miniNote.fixedLast ? "true" : "false"}">
+      <h2>${escapeHtml(miniNote.title)}</h2>
+      ${miniNote.content ? `<p>${escapeHtml(miniNote.content)}</p>` : ""}
+      <button class="card-delete-button" type="button" data-delete-mini-note="${miniNote.id}" aria-label="Excluir mininota">x</button>
+    </article>
+  `;
+}
+
+function normalizeMiniNotes(miniNotes) {
+  return keepFixedLastMiniNotes(
+    miniNotes.map((miniNote) => ({
+      id: miniNote.id || createId(),
+      title: clean(miniNote.title) || "Sem título",
+      content: miniNote.content || "",
+      color: miniNote.color || "cream",
+      fixedLast: Boolean(miniNote.fixedLast),
+    })),
+  );
+}
+
+function keepFixedLastMiniNotes(miniNotes) {
+  return [
+    ...miniNotes.filter((miniNote) => !miniNote.fixedLast),
+    ...miniNotes.filter((miniNote) => miniNote.fixedLast),
+  ];
 }
 
 function syncNotesCount() {
@@ -1062,10 +1104,17 @@ function initCloudSync() {
           return;
         }
 
+        const previousState = JSON.stringify(state);
         state = normalizeState(remoteState);
         syncNotesCount();
         saveState({ cloud: false });
         initialCloudLoaded = true;
+
+        if (JSON.stringify(state) === previousState) {
+          setSyncStatus("Sincronizado");
+          return;
+        }
+
         render();
         setSyncStatus("Sincronizado");
       },
@@ -1149,7 +1198,7 @@ function normalizeState(nextState) {
     content: note.content || "",
     block_id: note.block_id || "",
     color: note.color || "cream",
-    canvasItems: Array.isArray(note.canvasItems) ? note.canvasItems : [],
+    miniNotes: Array.isArray(note.miniNotes) ? normalizeMiniNotes(note.miniNotes) : [],
   }));
 
   return normalized;
@@ -1168,27 +1217,7 @@ function isDefaultInitialState(candidateState) {
 }
 
 function setSyncStatus(message) {
-  let status = document.querySelector("#syncStatus");
-
-  if (!status) {
-    status = document.createElement("div");
-    status.id = "syncStatus";
-    status.setAttribute("aria-live", "polite");
-    status.style.position = "fixed";
-    status.style.left = "16px";
-    status.style.bottom = "16px";
-    status.style.zIndex = "9999";
-    status.style.padding = "8px 12px";
-    status.style.borderRadius = "999px";
-    status.style.background = "rgba(255, 255, 255, 0.88)";
-    status.style.boxShadow = "0 8px 24px rgba(86, 62, 38, 0.18)";
-    status.style.backdropFilter = "blur(8px)";
-    status.style.font = "600 12px Inter, system-ui, sans-serif";
-    status.style.color = "#7a4b2c";
-    document.body.appendChild(status);
-  }
-
-  status.textContent = message;
+  document.querySelector("#syncStatus")?.remove();
 }
 
 syncNotesCount();
