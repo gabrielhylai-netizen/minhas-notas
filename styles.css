@@ -379,6 +379,10 @@ p {
   background: var(--surface);
   box-shadow: var(--shadow);
   overflow: visible;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
   animation: cardIn 320ms ease both;
   transition: transform 190ms ease, box-shadow 190ms ease, border-color 190ms ease;
 }
@@ -395,6 +399,7 @@ p {
   z-index: 20;
   cursor: grabbing;
   pointer-events: none;
+  touch-action: none;
   transform: scale(1.03);
   box-shadow: 0 26px 54px rgba(76, 50, 32, 0.2);
 }

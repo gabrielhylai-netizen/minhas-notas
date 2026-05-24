@@ -25,6 +25,7 @@ let notePressTimer = null;
 let blockPressTimer = null;
 let miniNotePressTimer = null;
 let cardDrag = null;
+let activeCardPointerId = null;
 
 const colorLabels = {
   terracotta: "Terracota",
@@ -139,6 +140,9 @@ document.querySelectorAll("[data-close]").forEach((button) => {
 elements.cancelDelete.addEventListener("click", closeDeleteDialog);
 elements.confirmDelete.addEventListener("click", deletePendingItem);
 document.addEventListener("pointerdown", clearDeleteModeOnOutsidePress);
+document.addEventListener("pointermove", moveCardDrag, { passive: false });
+document.addEventListener("pointerup", endCardDrag);
+document.addEventListener("pointercancel", endCardDrag);
 
 elements.blockForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -586,6 +590,7 @@ function startCardDrag(event, card, type) {
     moved: false,
     orderChanged: false,
   };
+  activeCardPointerId = event.pointerId;
 }
 
 function getCardGrid(type) {
@@ -602,6 +607,10 @@ function getCardGrid(type) {
 
 function moveCardDrag(event) {
   if (!cardDrag) {
+    return;
+  }
+
+  if (activeCardPointerId !== null && event.pointerId !== activeCardPointerId) {
     return;
   }
 
@@ -694,6 +703,10 @@ function endCardDrag() {
     return;
   }
 
+  if (activeCardPointerId !== null && event?.pointerId !== undefined && event.pointerId !== activeCardPointerId) {
+    return;
+  }
+
   const { type, card, placeholder, moved, orderChanged, originalOrder } = cardDrag;
   card.style.transition = "none";
   card.style.animation = "none";
@@ -719,6 +732,7 @@ function endCardDrag() {
   });
 
   cardDrag = null;
+  activeCardPointerId = null;
 }
 
 function saveCardOrder(type) {
