@@ -528,12 +528,7 @@ function startBlockPress(event, card) {
   cancelBlockPress();
   card.setPointerCapture(event.pointerId);
   blockPressTimer = window.setTimeout(() => {
-    elements.blocksGrid.querySelectorAll(".block-card.is-delete-ready").forEach((blockCard) => {
-      if (blockCard !== card) {
-        blockCard.classList.remove("is-delete-ready");
-      }
-    });
-    card.classList.add("is-delete-ready");
+    activateCardControls(card, elements.blocksGrid, ".block-card.is-delete-ready");
     startCardDrag(event, card, "block");
   }, getCardPressDelay(event));
 }
@@ -553,12 +548,7 @@ function startNotePress(event, card) {
   cancelNotePress();
   card.setPointerCapture(event.pointerId);
   notePressTimer = window.setTimeout(() => {
-    elements.notesGrid.querySelectorAll(".note-card.is-delete-ready").forEach((noteCard) => {
-      if (noteCard !== card) {
-        noteCard.classList.remove("is-delete-ready");
-      }
-    });
-    card.classList.add("is-delete-ready");
+    activateCardControls(card, elements.notesGrid, ".note-card.is-delete-ready");
     startCardDrag(event, card, "note");
   }, getCardPressDelay(event));
 }
@@ -578,12 +568,7 @@ function startMiniNotePress(event, card) {
   cancelMiniNotePress();
   card.setPointerCapture(event.pointerId);
   miniNotePressTimer = window.setTimeout(() => {
-    elements.miniNotesGrid.querySelectorAll(".note-card.is-delete-ready").forEach((miniNoteCard) => {
-      if (miniNoteCard !== card) {
-        miniNoteCard.classList.remove("is-delete-ready");
-      }
-    });
-    card.classList.add("is-delete-ready");
+    activateCardControls(card, elements.miniNotesGrid, ".note-card.is-delete-ready");
     if (card.dataset.fixedLast === "true") {
       return;
     }
@@ -602,16 +587,28 @@ function cancelMiniNotePress() {
   }
 }
 
+function activateCardControls(card, grid, selector) {
+  grid.querySelectorAll(selector).forEach((activeCard) => {
+    if (activeCard !== card) {
+      activeCard.classList.remove("is-delete-ready");
+    }
+  });
+
+  card.classList.add("is-delete-ready");
+}
+
 function clearDeleteModeOnOutsidePress(event) {
-  const clickedInsideProtectedArea = event.target.closest(
+  const clickedProtectedElement = event.target.closest(
     ".card, .add-block-card, .dialog-backdrop, .add-inline-button, .ghost-button, .card-control-button",
   );
 
-  if (clickedInsideProtectedArea) {
+  if (clickedProtectedElement) {
     return;
   }
 
-  clearDeleteMode();
+  if ([elements.blocksGrid, elements.notesGrid, elements.miniNotesGrid].includes(event.target)) {
+    clearDeleteMode();
+  }
 }
 
 function clearDeleteMode() {
@@ -751,6 +748,7 @@ function startCardDrag(event, card, type) {
   placeholder.style.height = `${rect.height}px`;
 
   card.parentNode.insertBefore(placeholder, card);
+  card.classList.add("is-delete-ready");
   card.classList.add("is-card-dragging");
   card.style.width = `${rect.width}px`;
   card.style.height = `${rect.height}px`;
