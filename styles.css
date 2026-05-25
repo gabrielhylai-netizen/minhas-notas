@@ -318,9 +318,8 @@ p {
   cursor: pointer;
 }
 
-.card-delete-button {
+.card-control-button {
   position: absolute;
-  right: 0;
   bottom: 0;
   width: 30px;
   min-height: 30px;
@@ -335,8 +334,16 @@ p {
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-.note-card.is-delete-ready .card-delete-button,
-.block-card.is-delete-ready .card-delete-button {
+.card-delete-button {
+  right: 0;
+}
+
+.card-edit-button {
+  right: 38px;
+}
+
+.note-card.is-delete-ready .card-control-button,
+.block-card.is-delete-ready .card-control-button {
   opacity: 1;
   pointer-events: auto;
   transform: translate(50%, 50%) scale(1);
@@ -347,6 +354,40 @@ p {
   font-size: 1.45rem;
   font-weight: 800;
   line-height: 1.15;
+}
+
+.card-title-input {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 260px);
+  border: 1px solid rgba(182, 95, 69, 0.26);
+  border-radius: 8px;
+  background: rgba(255, 250, 242, 0.86);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  outline: none;
+  padding: 8px 10px;
+}
+
+.card-description-input {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 280px);
+  min-height: 72px;
+  border: 1px solid rgba(182, 95, 69, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 250, 242, 0.82);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  text-align: center;
+  outline: none;
+  resize: vertical;
+  padding: 8px 10px;
 }
 
 .note-card p,
@@ -366,6 +407,7 @@ p {
   overflow: hidden;
   font-size: 0.95rem;
   line-height: 1.35;
+  cursor: default;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
@@ -379,7 +421,7 @@ p {
   background: var(--surface);
   box-shadow: var(--shadow);
   overflow: visible;
-  touch-action: none;
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
@@ -451,11 +493,11 @@ p {
   pointer-events: none;
 }
 
-.card > *:not(.card-delete-button) {
+.card > *:not(.card-control-button) {
   position: relative;
 }
 
-.card > .card-delete-button {
+.card > .card-control-button {
   position: absolute;
 }
 

@@ -396,7 +396,7 @@ function renderBlocks() {
         return;
       }
 
-      if (event.target.closest("[data-delete-block]") || card.classList.contains("is-delete-ready")) {
+      if (event.target.closest("[data-delete-block], [data-edit-card]") || card.classList.contains("is-delete-ready")) {
         return;
       }
 
@@ -409,6 +409,13 @@ function renderBlocks() {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       openDeleteDialog("block", button.dataset.deleteBlock);
+    });
+  });
+
+  elements.blocksGrid.querySelectorAll("[data-edit-card]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      startCardTitleEdit("block", button.dataset.editCard, button.closest(".card"));
     });
   });
 
@@ -434,7 +441,7 @@ function renderNotes() {
         return;
       }
 
-      if (event.target.closest("[data-delete-note]") || card.classList.contains("is-delete-ready")) {
+      if (event.target.closest("[data-delete-note], [data-edit-card], [data-edit-description]") || card.classList.contains("is-delete-ready")) {
         return;
       }
 
@@ -447,6 +454,21 @@ function renderNotes() {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       openDeleteDialog("note", button.dataset.deleteNote);
+    });
+  });
+
+  elements.notesGrid.querySelectorAll("[data-edit-card]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      startCardTitleEdit("note", button.dataset.editCard, button.closest(".card"));
+    });
+  });
+
+  elements.notesGrid.querySelectorAll("[data-edit-description]").forEach((description) => {
+    description.addEventListener("click", (event) => event.stopPropagation());
+    description.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      startCardDescriptionEdit("note", description.dataset.editDescription, description);
     });
   });
 }
@@ -471,10 +493,25 @@ function renderMiniNotes(note) {
       openDeleteDialog("miniNote", button.dataset.deleteMiniNote);
     });
   });
+
+  elements.miniNotesGrid.querySelectorAll("[data-edit-card]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      startCardTitleEdit("miniNote", button.dataset.editCard, button.closest(".card"));
+    });
+  });
+
+  elements.miniNotesGrid.querySelectorAll("[data-edit-description]").forEach((description) => {
+    description.addEventListener("click", (event) => event.stopPropagation());
+    description.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      startCardDescriptionEdit("miniNote", description.dataset.editDescription, description);
+    });
+  });
 }
 
 function startBlockPress(event, card) {
-  if (event.target.closest("[data-delete-block]")) {
+  if (event.target.closest("[data-delete-block], [data-edit-card]")) {
     return;
   }
 
@@ -499,7 +536,7 @@ function cancelBlockPress() {
 }
 
 function startNotePress(event, card) {
-  if (event.target.closest("[data-delete-note]")) {
+  if (event.target.closest("[data-delete-note], [data-edit-card]")) {
     return;
   }
 
@@ -524,7 +561,7 @@ function cancelNotePress() {
 }
 
 function startMiniNotePress(event, card) {
-  if (event.target.closest("[data-delete-mini-note]") || card.dataset.fixedLast === "true") {
+  if (event.target.closest("[data-delete-mini-note], [data-edit-card]")) {
     return;
   }
 
@@ -537,6 +574,9 @@ function startMiniNotePress(event, card) {
       }
     });
     card.classList.add("is-delete-ready");
+    if (card.dataset.fixedLast === "true") {
+      return;
+    }
     startCardDrag(event, card, "miniNote");
   }, getCardPressDelay(event));
 }
@@ -554,7 +594,7 @@ function cancelMiniNotePress() {
 
 function clearDeleteModeOnOutsidePress(event) {
   const clickedInsideProtectedArea = event.target.closest(
-    ".card, .add-block-card, .dialog-backdrop, .add-inline-button, .ghost-button, .card-delete-button",
+    ".card, .add-block-card, .dialog-backdrop, .add-inline-button, .ghost-button, .card-control-button",
   );
 
   if (clickedInsideProtectedArea) {
@@ -568,6 +608,129 @@ function clearDeleteMode() {
   document.querySelectorAll(".is-delete-ready").forEach((card) => {
     card.classList.remove("is-delete-ready");
   });
+}
+
+function startCardTitleEdit(type, id, card) {
+  const title = card?.querySelector("h2");
+  const item = getCardTitleItem(type, id);
+
+  if (!title || !item || card.querySelector(".card-title-input")) {
+    return;
+  }
+
+  const input = document.createElement("input");
+  input.className = "card-title-input";
+  input.value = item.title;
+  input.maxLength = 60;
+  input.dataset.entityType = type;
+  input.dataset.entityId = id;
+  input.dataset.previousTitle = item.title;
+
+  title.replaceWith(input);
+  input.focus();
+  input.select();
+
+  input.addEventListener("click", (event) => event.stopPropagation());
+  input.addEventListener("pointerdown", (event) => event.stopPropagation());
+  input.addEventListener("blur", () => finishCardTitleEdit(input));
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      input.blur();
+    }
+
+    if (event.key === "Escape") {
+      input.value = input.dataset.previousTitle;
+      render();
+    }
+  });
+}
+
+function finishCardTitleEdit(input) {
+  const item = getCardTitleItem(input.dataset.entityType, input.dataset.entityId);
+
+  if (item) {
+    const nextTitle = clean(input.value);
+    item.title = nextTitle || item.title;
+    saveState();
+  }
+
+  render();
+}
+
+function getCardTitleItem(type, id) {
+  if (type === "block") {
+    return state.blocks.find((block) => block.id === id);
+  }
+
+  if (type === "note") {
+    return state.notes.find((note) => note.id === id);
+  }
+
+  if (type === "miniNote") {
+    const activeNote = state.notes.find((note) => note.id === activeNoteId);
+    return activeNote?.miniNotes?.find((miniNote) => miniNote.id === id) || null;
+  }
+
+  return null;
+}
+
+function startCardDescriptionEdit(type, id, description) {
+  const item = getCardDescriptionItem(type, id);
+
+  if (!description || !item || document.querySelector(".card-description-input")) {
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.className = "card-description-input";
+  input.value = item.content || "";
+  input.maxLength = 180;
+  input.dataset.entityType = type;
+  input.dataset.entityId = id;
+  input.dataset.previousDescription = item.content || "";
+
+  description.replaceWith(input);
+  input.focus();
+  input.select();
+
+  input.addEventListener("click", (event) => event.stopPropagation());
+  input.addEventListener("pointerdown", (event) => event.stopPropagation());
+  input.addEventListener("blur", () => finishCardDescriptionEdit(input));
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      input.blur();
+    }
+
+    if (event.key === "Escape") {
+      input.value = input.dataset.previousDescription;
+      render();
+    }
+  });
+}
+
+function finishCardDescriptionEdit(input) {
+  const item = getCardDescriptionItem(input.dataset.entityType, input.dataset.entityId);
+
+  if (item) {
+    item.content = clean(input.value);
+    saveState();
+  }
+
+  render();
+}
+
+function getCardDescriptionItem(type, id) {
+  if (type === "note") {
+    return state.notes.find((note) => note.id === id);
+  }
+
+  if (type === "miniNote") {
+    const activeNote = state.notes.find((note) => note.id === activeNoteId);
+    return activeNote?.miniNotes?.find((miniNote) => miniNote.id === id) || null;
+  }
+
+  return null;
 }
 
 function startCardDrag(event, card, type) {
@@ -829,7 +992,8 @@ function blockTemplate(block) {
   return `
     <article class="card block-card ${block.color}" data-open-block="${block.id}">
       <h2>${escapeHtml(block.title)}</h2>
-      <button class="card-delete-button" type="button" data-delete-block="${block.id}" aria-label="Excluir bloco">x</button>
+      <button class="card-control-button card-edit-button" type="button" data-edit-card="${block.id}" aria-label="Editar bloco">&#9998;</button>
+      <button class="card-control-button card-delete-button" type="button" data-delete-block="${block.id}" aria-label="Excluir bloco">x</button>
     </article>
   `;
 }
@@ -934,8 +1098,9 @@ function noteTemplate(note) {
   return `
     <article class="card note-card ${note.color}" data-open-note="${note.id}">
       <h2>${escapeHtml(note.title)}</h2>
-      ${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}
-      <button class="card-delete-button" type="button" data-delete-note="${note.id}" aria-label="Excluir nota">x</button>
+      ${note.content ? `<p data-edit-description="${note.id}" title="Clique duas vezes para editar">${escapeHtml(note.content)}</p>` : ""}
+      <button class="card-control-button card-edit-button" type="button" data-edit-card="${note.id}" aria-label="Editar nota">&#9998;</button>
+      <button class="card-control-button card-delete-button" type="button" data-delete-note="${note.id}" aria-label="Excluir nota">x</button>
     </article>
   `;
 }
@@ -944,8 +1109,9 @@ function miniNoteTemplate(miniNote) {
   return `
     <article class="card note-card ${miniNote.color}" data-mini-note="${miniNote.id}" data-fixed-last="${miniNote.fixedLast ? "true" : "false"}">
       <h2>${escapeHtml(miniNote.title)}</h2>
-      ${miniNote.content ? `<p>${escapeHtml(miniNote.content)}</p>` : ""}
-      <button class="card-delete-button" type="button" data-delete-mini-note="${miniNote.id}" aria-label="Excluir mininota">x</button>
+      ${miniNote.content ? `<p data-edit-description="${miniNote.id}" title="Clique duas vezes para editar">${escapeHtml(miniNote.content)}</p>` : ""}
+      <button class="card-control-button card-edit-button" type="button" data-edit-card="${miniNote.id}" aria-label="Editar mininota">&#9998;</button>
+      <button class="card-control-button card-delete-button" type="button" data-delete-mini-note="${miniNote.id}" aria-label="Excluir mininota">x</button>
     </article>
   `;
 }
