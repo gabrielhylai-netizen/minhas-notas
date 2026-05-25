@@ -26,6 +26,7 @@ let blockPressTimer = null;
 let miniNotePressTimer = null;
 let cardDrag = null;
 let activeCardPointerId = null;
+let pendingInteractionRender = false;
 
 const colorLabels = {
   terracotta: "Terracota",
@@ -538,6 +539,8 @@ function cancelBlockPress() {
     window.clearTimeout(blockPressTimer);
     blockPressTimer = null;
   }
+
+  flushDeferredInteractionRender();
 }
 
 function startNotePress(event, card) {
@@ -558,6 +561,8 @@ function cancelNotePress() {
     window.clearTimeout(notePressTimer);
     notePressTimer = null;
   }
+
+  flushDeferredInteractionRender();
 }
 
 function startMiniNotePress(event, card) {
@@ -585,6 +590,25 @@ function cancelMiniNotePress() {
     window.clearTimeout(miniNotePressTimer);
     miniNotePressTimer = null;
   }
+
+  flushDeferredInteractionRender();
+}
+
+function isCardInteractionActive() {
+  return Boolean(cardDrag || blockPressTimer || notePressTimer || miniNotePressTimer);
+}
+
+function deferRenderUntilCardInteractionEnds() {
+  pendingInteractionRender = true;
+}
+
+function flushDeferredInteractionRender() {
+  if (!pendingInteractionRender || isCardInteractionActive()) {
+    return;
+  }
+
+  pendingInteractionRender = false;
+  render();
 }
 
 function activateCardControls(card, grid, selector) {
@@ -909,6 +933,7 @@ function endCardDrag() {
 
   cardDrag = null;
   activeCardPointerId = null;
+  flushDeferredInteractionRender();
 }
 
 function saveCardOrder(type) {
@@ -1304,6 +1329,12 @@ function initCloudSync() {
         initialCloudLoaded = true;
 
         if (JSON.stringify(state) === previousState) {
+          setSyncStatus("Sincronizado");
+          return;
+        }
+
+        if (isCardInteractionActive()) {
+          deferRenderUntilCardInteractionEnds();
           setSyncStatus("Sincronizado");
           return;
         }
