@@ -19,6 +19,7 @@ body {
   background: radial-gradient(circle at top left, #fff7ea 0, var(--bg) 34%, #f8eadb 100%);
   color: var(--ink);
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -36,6 +37,17 @@ button {
   width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
   padding: 44px 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-shell input,
+.app-shell textarea {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 
 .page {

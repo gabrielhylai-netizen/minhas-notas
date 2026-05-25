@@ -144,6 +144,8 @@ document.addEventListener("pointerdown", clearDeleteModeOnOutsidePress);
 document.addEventListener("pointermove", moveCardDrag, { passive: false });
 document.addEventListener("pointerup", endCardDrag);
 document.addEventListener("pointercancel", endCardDrag);
+document.querySelector(".app-shell").addEventListener("contextmenu", preventNativeTouchMenu);
+document.querySelector(".app-shell").addEventListener("dragstart", preventNativeTouchMenu);
 
 elements.blockForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -162,6 +164,14 @@ elements.blockForm.addEventListener("submit", (event) => {
   activeBlockId = state.blocks[0].id;
   render();
 });
+
+function preventNativeTouchMenu(event) {
+  if (event.target.closest("input, textarea, select")) {
+    return;
+  }
+
+  event.preventDefault();
+}
 
 elements.noteForm.addEventListener("submit", (event) => {
   event.preventDefault();
