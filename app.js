@@ -27,6 +27,7 @@ let miniNotePressTimer = null;
 let cardDrag = null;
 let activeCardPointerId = null;
 let pendingInteractionRender = false;
+let touchCardPress = null;
 
 const colorLabels = {
   terracotta: "Terracota",
@@ -142,6 +143,7 @@ document.querySelectorAll("[data-close]").forEach((button) => {
 elements.cancelDelete.addEventListener("click", closeDeleteDialog);
 elements.confirmDelete.addEventListener("click", deletePendingItem);
 document.addEventListener("pointerdown", clearDeleteModeOnOutsidePress);
+document.addEventListener("pointermove", handleTouchCardScroll, { passive: false });
 document.addEventListener("pointermove", moveCardDrag, { passive: false });
 document.addEventListener("pointerup", endCardDrag);
 document.addEventListener("pointercancel", endCardDrag);
@@ -528,18 +530,24 @@ function startBlockPress(event, card) {
 
   cancelBlockPress();
   card.setPointerCapture(event.pointerId);
+  beginTouchCardPress(event);
   blockPressTimer = window.setTimeout(() => {
     activateCardControls(card, elements.blocksGrid, ".block-card.is-delete-ready");
     startCardDrag(event, card, "block");
   }, getCardPressDelay(event));
 }
 
-function cancelBlockPress() {
+function cancelBlockPress(event) {
+  if (event?.type === "pointerleave" && event.pointerType === "touch") {
+    return;
+  }
+
   if (blockPressTimer) {
     window.clearTimeout(blockPressTimer);
     blockPressTimer = null;
   }
 
+  endTouchCardPress(event);
   flushDeferredInteractionRender();
 }
 
@@ -550,18 +558,24 @@ function startNotePress(event, card) {
 
   cancelNotePress();
   card.setPointerCapture(event.pointerId);
+  beginTouchCardPress(event);
   notePressTimer = window.setTimeout(() => {
     activateCardControls(card, elements.notesGrid, ".note-card.is-delete-ready");
     startCardDrag(event, card, "note");
   }, getCardPressDelay(event));
 }
 
-function cancelNotePress() {
+function cancelNotePress(event) {
+  if (event?.type === "pointerleave" && event.pointerType === "touch") {
+    return;
+  }
+
   if (notePressTimer) {
     window.clearTimeout(notePressTimer);
     notePressTimer = null;
   }
 
+  endTouchCardPress(event);
   flushDeferredInteractionRender();
 }
 
@@ -572,6 +586,7 @@ function startMiniNotePress(event, card) {
 
   cancelMiniNotePress();
   card.setPointerCapture(event.pointerId);
+  beginTouchCardPress(event);
   miniNotePressTimer = window.setTimeout(() => {
     activateCardControls(card, elements.miniNotesGrid, ".note-card.is-delete-ready");
     if (card.dataset.fixedLast === "true") {
@@ -585,13 +600,79 @@ function getCardPressDelay(event) {
   return event.pointerType === "touch" ? CARD_TOUCH_PRESS_DELAY : CARD_MOUSE_PRESS_DELAY;
 }
 
-function cancelMiniNotePress() {
+function cancelMiniNotePress(event) {
+  if (event?.type === "pointerleave" && event.pointerType === "touch") {
+    return;
+  }
+
   if (miniNotePressTimer) {
     window.clearTimeout(miniNotePressTimer);
     miniNotePressTimer = null;
   }
 
+  endTouchCardPress(event);
   flushDeferredInteractionRender();
+}
+
+function beginTouchCardPress(event) {
+  if (event.pointerType !== "touch") {
+    return;
+  }
+
+  touchCardPress = {
+    pointerId: event.pointerId,
+    startY: event.clientY,
+    lastY: event.clientY,
+    hasScrolled: false,
+  };
+}
+
+function handleTouchCardScroll(event) {
+  if (!touchCardPress || cardDrag || event.pointerId !== touchCardPress.pointerId) {
+    return;
+  }
+
+  const deltaFromStart = Math.abs(event.clientY - touchCardPress.startY);
+  const deltaY = event.clientY - touchCardPress.lastY;
+
+  if (deltaFromStart < 8) {
+    return;
+  }
+
+  event.preventDefault();
+  cancelCardPressTimers();
+  window.scrollBy(0, -deltaY);
+  touchCardPress.lastY = event.clientY;
+  touchCardPress.hasScrolled = true;
+}
+
+function cancelCardPressTimers() {
+  if (blockPressTimer) {
+    window.clearTimeout(blockPressTimer);
+    blockPressTimer = null;
+  }
+
+  if (notePressTimer) {
+    window.clearTimeout(notePressTimer);
+    notePressTimer = null;
+  }
+
+  if (miniNotePressTimer) {
+    window.clearTimeout(miniNotePressTimer);
+    miniNotePressTimer = null;
+  }
+}
+
+function endTouchCardPress(event) {
+  if (!touchCardPress) {
+    return;
+  }
+
+  if (event?.pointerId !== undefined && event.pointerId !== touchCardPress.pointerId) {
+    return;
+  }
+
+  touchCardPress = null;
 }
 
 function isCardInteractionActive() {
@@ -933,6 +1014,7 @@ function endCardDrag() {
 
   cardDrag = null;
   activeCardPointerId = null;
+  endTouchCardPress(event);
   flushDeferredInteractionRender();
 }
 
