@@ -532,6 +532,7 @@ function startBlockPress(event, card) {
   card.setPointerCapture(event.pointerId);
   beginTouchCardPress(event);
   blockPressTimer = window.setTimeout(() => {
+    blockPressTimer = null;
     activateCardControls(card, elements.blocksGrid, ".block-card.is-delete-ready");
     startCardDrag(event, card, "block");
   }, getCardPressDelay(event));
@@ -560,6 +561,7 @@ function startNotePress(event, card) {
   card.setPointerCapture(event.pointerId);
   beginTouchCardPress(event);
   notePressTimer = window.setTimeout(() => {
+    notePressTimer = null;
     activateCardControls(card, elements.notesGrid, ".note-card.is-delete-ready");
     startCardDrag(event, card, "note");
   }, getCardPressDelay(event));
@@ -588,8 +590,11 @@ function startMiniNotePress(event, card) {
   card.setPointerCapture(event.pointerId);
   beginTouchCardPress(event);
   miniNotePressTimer = window.setTimeout(() => {
+    miniNotePressTimer = null;
     activateCardControls(card, elements.miniNotesGrid, ".note-card.is-delete-ready");
     if (card.dataset.fixedLast === "true") {
+      endTouchCardPress(event);
+      flushDeferredInteractionRender();
       return;
     }
     startCardDrag(event, card, "miniNote");
